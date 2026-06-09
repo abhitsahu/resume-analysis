@@ -1,27 +1,52 @@
-const express = require("express");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const connectDB = require("./config/db");
-
+const dotenv = require('dotenv');
 dotenv.config();
-connectDB();
 
-const app = express();
-app.use(express.json());
-app.use(cors());
+const { validateEnv } = require('./src/config/env');
+validateEnv();
 
-// Import routes
-const authRoutes = require("./routes/authRoutes");
-const resumeRoutes = require("./routes/resumeRoutes");
+const app = require('./src/app');
+const connectDB = require('./src/config/db');
+const logger = require('./src/utils/logger');
+const fs = require('fs');
+const path = require('path');
 
-// Check
-app.get("/",(req,res)=>{
-    res.send("hello");
-})
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-// Use routes
-app.use("/api/auth", authRoutes);
-app.use("/api/resume", resumeRoutes);
+// Ensure logs directory exists
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+const startServer = async () => {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
+      logger.info(`API Docs available at http://localhost:${PORT}/api-docs`);
+    });
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  logger.error('UNHANDLED REJECTION:', err);
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('UNCAUGHT EXCEPTION:', err);
+  process.exit(1);
+});
+
+startServer();
